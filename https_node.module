@@ -1,0 +1,149 @@
+<?php
+/**
+ * @file
+ * Contains HTTPS node implementation.
+ */
+
+/**
+ *  Implements hook_perm().
+ */
+function https_node_perm() {
+  return array('allow https node access');
+}
+/**
+ *  Implements hook_form_alter().
+ */
+function https_node_form_alter(&$form, $form_state, $form_id) {
+    //allow on a per-node-type basis
+    if ('node_type_form' == $form_id) {
+      $form['https_node'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('HTTPS Node settings'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+        '#weight' => 35,
+        '#group' => 'additional_settings',
+      );
+      $form['https_node']['https_node_enable'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Enable HTTPS option'),
+        '#default_value' => variable_get('https_node_enable_'. $form['#node_type']->type, 0),
+        '#description' => t('Check this box to enable HTTPS option for this node type.')
+      );
+    }
+    // for node form.
+    elseif (isset($form['type']['#value']) && $form['type']['#value'] .'_node_form' == $form_id) {
+      if (user_access('allow https node access')) {
+        $enabled = variable_get('https_node_enable_'. $form['type']['#value'], 0) == 1;
+
+        if ($enabled ) {
+          $node = $form['#node'];
+
+          // if this is a preview then get the values from the form, not the db
+          if (isset($form_state['values']['op']) && $form_state['values']['op'] == t('Preview')) {
+            $default = $form_state['values']['https_node'];
+          }
+          elseif (isset($node->nid) && $node->nid > 0) {
+            $default = 0;
+            // load the values if we are viewing an existing node
+            $result = db_fetch_object(db_query('SELECT status FROM {https_node} WHERE nid = %d', $node->nid));
+            if ($result) {
+              $default = $result->status;
+            }
+          }
+          else {
+            $default = 0;
+          }
+
+          $form['https_node_settings'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('HTTPS Settings'),
+            '#collapsible' => TRUE,
+            '#collapsed' => TRUE,
+            '#weight' => 35,
+            '#group' => 'additional_settings',
+          );
+
+          $form['https_node_settings']['https_node'] = array(
+            '#type' => 'checkbox',
+            '#title' => t('Enable HTTPS'),
+            '#default_value' => $default,
+            '#description' => t('Force node view page to load in HTTPS')
+          );
+        }
+      }
+    }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function https_node_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  if ($op == 'load') {
+    $enabled = variable_get('https_node_enable_'. $node->type, 0) == 1;
+    if (isset($node->nid) && $node->nid && $enabled) {
+      $result = db_query('SELECT * FROM {https_node} WHERE nid = %d', $node->nid);
+      if ($result) {
+        $row = db_fetch_object($result);
+        if (isset($row->nid)) {
+          $node->https_node = $row->status;
+        }
+      }
+    }
+  }
+  elseif ($op == 'view') {
+      if (isset($a4) && $a4 && property_exists($node, 'https_node') && $node->https_node == 1) {
+      // Add redirect code here.
+      global $base_url;
+      $url_parts = parse_url($base_url);
+      if ($url_parts['scheme'] == 'http') {
+        $count = 1;
+        // @TODO: Fix it, so that works with all URL params and non-clean url.
+        $url = str_replace('http', 'https', $base_url, $count);
+        header('Location:' . $url. '/' . $_GET['q']);
+        exit;
+      }
+    }
+  }
+  elseif (user_access('allow https node access')) {
+    switch ($op) {
+      case 'insert':
+        // only insert into database if we need to (un)publish this node at some date
+        if (isset($node->nid) && $node->nid && property_exists($node, 'https_node')) {
+          db_query('INSERT INTO {https_node} (nid, status) VALUES (%d, %d)', $node->nid, $node->https_node);
+        }
+        break;
+      case 'update':
+        if (isset($node->nid) && $node->nid) {
+          $exists = db_result(db_query('SELECT nid FROM {https_node} WHERE nid = %d', $node->nid));
+          $status = isset($node->https_node) ? $node->https_node : 0;
+
+          // if this node has already been set as https.
+          if ($exists) {
+            db_query('UPDATE {https_node} SET status = %d WHERE nid = %d', $status, $node->nid);
+          }
+          // Node doesn't exist, create a record.
+          else {
+            db_query('INSERT INTO {https_node} (nid, status) VALUES (%d, %d)', $node->nid, $status);
+          }
+        }
+        break;
+      case 'delete':
+        if (isset($node->nid) && $node->nid) {
+          db_query('DELETE FROM {https_node} WHERE nid = %d', $node->nid);
+        }
+        break;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_node_type().
+ */
+function https_node_node_type($op, $info) {
+  switch ($op) {
+    case 'delete':
+      variable_del('https_node_enable_' . $info->type);
+      break;
+  }
+}

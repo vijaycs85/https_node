@@ -1,0 +1,3 @@
+name = "HTTPS Node"
+description = "Allows to set HTTPS for node view page per node."
+core = 6.x
