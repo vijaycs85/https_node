@@ -92,17 +92,8 @@ function https_node_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
     }
   }
   elseif ($op == 'view') {
-      if (isset($a4) && $a4 && property_exists($node, 'https_node') && $node->https_node == 1) {
-      // Add redirect code here.
-      global $base_url;
-      $url_parts = parse_url($base_url);
-      if ($url_parts['scheme'] == 'http') {
-        $count = 1;
-        // @TODO: Fix it, so that works with all URL params and non-clean url.
-        $url = str_replace('http', 'https', $base_url, $count);
-        header('Location:' . $url. '/' . $_GET['q']);
-        exit;
-      }
+    if (isset($a4) && $a4 && !securepages_is_secure() && property_exists($node, 'https_node') && $node->https_node == 1) {
+      securepages_goto(TRUE);
     }
   }
   elseif (user_access('allow https node access')) {
