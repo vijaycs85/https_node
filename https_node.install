@@ -1,0 +1,51 @@
+<?php
+
+/**
+ * @file
+ * Installation file for HTTPS Node module.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function https_node_schema() {
+  return array(
+    'https_node' => array(
+      'description' => t('The main table to hold the HTTPS node data.'),
+      'fields' => array(
+        'nid' => array(
+          'description' => t('The foreign key to node.nid'),
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+        ),
+        'status' => array(
+          'description' => t('The https status of the node.'),
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+      ),
+      'indexes' => array(
+        'status' => array('status'),
+      ),
+      'primary key' => array('nid'),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function https_node_install() {
+  drupal_install_schema('https_node');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function https_node_uninstall() {
+  drupal_uninstall_schema('https_node');
+  db_query("DELETE FROM {variable} WHERE name LIKE '%s_%%'", 'https_node');
+}

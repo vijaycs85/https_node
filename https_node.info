@@ -1,0 +1,4 @@
+name = "HTTPS Node"
+description = "Allows to set HTTPS for node view page per node."
+core = 7.x
+dependencies[] = securepages
